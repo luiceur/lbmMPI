@@ -1,0 +1,31 @@
+# FLAGS
+
+CFLAGS+=${CFLAGS_${CC}}
+CFLAGS_mpicc:= -O2 -Wall -Wextra -Wpedantic -march=native -std=c11 -DDEBUG -fopenmp -g
+CFLAGS_mpiicc:= -O2 -Wall -Wextra -march=native -std=c11 -DDEBUG -DDATAP -qopenmp -g
+
+LDLIBS+=${LDLIBS_${CC}}
+LDLIBS_mpiicc:= -liomp5
+
+SRCDIR = src
+OBJDIR = obj
+
+all: hybrid_${ARCH} dat2vel dat2heat vel2heat vel2heat_scale
+
+# Link hybrid
+hybrid_${ARCH}: ${OBJDIR}/lbm
+	mv ${OBJDIR}/lbm $@
+${OBJDIR}/lbm: ${OBJDIR}/lbm.o ${OBJDIR}/host_kernel.o ${OBJDIR}/geometry.o
+${OBJDIR}/%.o: ${SRCDIR}/%.o
+	mv ${SRCDIR}/$*.o ${OBJDIR}/
+
+.PHONY: run clean purge all
+
+run: hybrid_${ARCH}
+	mpirun $^
+
+clean:
+	rm -rf dat2heat dat2vel vel2heat vel2heat_scale hybrid_${ARCH} data/* output core.* obj/*
+
+purge: clean
+	rm -rf *.o*

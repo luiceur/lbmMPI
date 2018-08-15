@@ -1,0 +1,43 @@
+MF=	Makefile
+
+CC=	cc
+
+CFLAGS=	-h std=c11  -DDEBUG  -DUSE_SHAN
+LFLAGS=	
+
+EXE=	shanLBM
+
+INC= \
+	data_comm.h
+
+
+
+
+SRC= \
+	src/host_kernel.c	\
+	src/geometry.c		\
+	src/lbm.c 		
+
+#
+# No need to edit below this line
+#
+
+.SUFFIXES:
+.SUFFIXES: .c .o
+
+OBJ=	$(SRC:.c=.o)
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+
+all:	$(EXE)
+
+$(OBJ):	$(INC)
+
+$(EXE):	$(OBJ)
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LFLAGS)
+
+$(OBJ):	$(MF)
+
+clean:
+	rm -f $(OBJ) $(EXE) core *.lst *~ 

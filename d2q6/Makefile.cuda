@@ -1,0 +1,62 @@
+NVCC ?= /usr/local/cuda/bin/nvcc
+
+CUDA_COMPILER_OPTIONS := ${CFLAGS} -Wextra -Wall -O2
+CUDA_COMPILER_OPTIONS := $(foreach option, $(CUDA_COMPILER_OPTIONS), --compiler-options $(option))
+
+# FLAGS
+CFLAGS:= ${CFLAGS} -O2 -Wall -Wextra -Wpedantic -march=native -std=c11 -DDEBUG -fopenmp
+CUDAFLAGS:= -ccbin=gcc
+LDFLAGS := -fopenmp
+
+
+SRCDIR = src
+OBJDIR = obj
+
+all: hybrid_${ARCH} dat2heat vel2heat vel2heat_scale
+
+# Link hybrid
+hybrid_${ARCH}: $(OBJDIR)/kernel.o $(OBJDIR)/mpi_cuda.o $(OBJDIR)/geometry.o
+	mpicc $^ -lcudart -L/usr/local/cuda/lib64 -o $@ -lm
+
+dat2heat: dat2heat.c
+	mpicc ${CFLAGS} $^ -o $@ -lm
+
+dat2vel: dat2vel.c
+	mpicc ${CFLAGS} $^ -o $@ -lm
+
+vel2heat: vel2heat.c
+	mpicc ${CFLAGS} $^ -o $@ -lm
+
+vel2heat_scale: vel2heat_scale.c
+	mpicc ${CFLAGS} $^ -o $@ -lm
+
+$(OBJDIR)/kernel.o: $(SRCDIR)/lbm.cu
+	$(NVCC) $(CUDA_COMPILER_OPTIONS) $(MPI_COMPILE_FLAGS) -c $< -o $@
+
+$(OBJDIR)/host_kernel.o: $(SRCDIR)/host_kernel.c
+	mpicc $(CFLAGS) -c $< -o $@ -lm
+
+$(OBJDIR)/geometry.o: $(SRCDIR)/geometry.c
+	mpicc $(CFLAGS) -DCUDA -c $< -o $@ -lm
+
+$(OBJDIR)/mpi_cuda.o: $(SRCDIR)/lbm.c
+	mpicc $(CFLAGS) -DCUDA -c $< -o $@ -lm
+
+$(OBJDIR)/mpi.o: $(SRCDIR)/lbm.c
+	mpicc $(CFLAGS) -O2 -c $< -o $@ -lm
+
+# Link mpi
+mpi: $(OBJDIR)/mpi.o $(OBJDIR)/host_kernel.o
+	mpicc $(LDFLAGS) $^ -o $@ -lm
+
+
+.PHONY: run clean purge
+
+run: hybrid_${ARCH}
+	mpirun $^
+
+clean:
+	-rm -f vel2heat vel2heat_scale dat2heat hybrid_${ARCH} mpi data/* output core.* obj/*
+
+purge: clean
+	rm -rf *.o*

@@ -1,0 +1,29 @@
+# FLAGS
+
+CFLAGS+=${CFLAGS_${CC}}
+CFLAGS_mpicc:=  -h std=c11  -DDEBUG       
+CFLAGS_mpiicc:= -h std=c11  -DDEBUG -DDATAP 
+
+LDLIBS+=${LDLIBS_${CC}}
+LDLIBS_mpiicc:= 
+
+SRCDIR = src
+OBJDIR = obj
+
+all: rma dat2vel dat2heat vel2heat vel2heat_scale
+
+# Link hybrid
+rma: ${OBJDIR}/lbm
+	mv ${OBJDIR}/lbm $@
+${OBJDIR}/lbm: ${OBJDIR}/lbm.o ${OBJDIR}/host_kernel.o ${OBJDIR}/geometry.o
+${OBJDIR}/%.o: ${SRCDIR}/%.o
+	mv ${SRCDIR}/$*.o ${OBJDIR}/
+
+.PHONY: run clean purge all
+
+
+clean:
+	rm -rf dat2heat dat2vel vel2heat vel2heat_scale rma data/* output core.* obj/*
+
+purge: clean
+	rm -rf *.o*

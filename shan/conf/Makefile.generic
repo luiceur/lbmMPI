@@ -1,0 +1,43 @@
+# FLAGS
+
+CFLAGS+=${CFLAGS_${CC}}
+CFLAGS_mpicc:=-std=c11 -fopenmp -O2 -Wall -Wextra -Wpedantic -march=native -DDATAP #-DDEBUG
+
+LDLIBS+=${LDLIBS_${CC}}
+LDLIBS_mpicc:=-lm -lgomp
+
+SRCDIR = src
+OBJDIR = obj
+
+all: hybrid_${ARCH} dat2vel dat2heat
+
+# Link hybrid
+hybrid_${ARCH}: ${OBJDIR}/lbm
+	mv ${OBJDIR}/lbm $@
+${OBJDIR}/lbm: ${OBJDIR}/lbm.o ${OBJDIR}/host_kernel.o 
+${OBJDIR}/%.o: ${SRCDIR}/%.o
+	mv ${SRCDIR}/$*.o ${OBJDIR}/
+
+.PHONY: run clean purge images all
+
+IMGS=$(shell find data -name '*.dat' | sed s/\.dat/.png/g)
+MATS=$(shell find data -name '*.dat' | sed s/\.dat/.mat/g)
+cylinder.mp4: images
+	${FFMPEG} ${FFMPEG_FLAGS} cylinder.mp4
+images: matrices $(IMGS)
+matrices: $(MATS)
+data/%.png: data/%.mat
+	./generate_heatmap.pl data/$*.mat
+data/%.mat: data/%.dat
+	./dat2heat data/$*.dat
+data/%.txt: data/%.dat
+	./dat2vel data/$*.dat > data/$*.txt
+
+run: hybrid_${ARCH}
+	mpirun $^
+
+clean:
+	-rm -f dat2heat dat2vel hybrid_${ARCH} data/* output core.* obj/*
+
+purge: clean
+	rm -rf *.o*

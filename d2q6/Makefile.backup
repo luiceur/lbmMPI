@@ -1,0 +1,49 @@
+NVCC ?= /usr/local/cuda/bin/nvcc
+
+# FLAGS
+CFLAGS:= -O2 -Wall -Wextra -Wpedantic -march=native -std=c11 -DDEBUG -fopenmp
+CUDAFLAGS:= -ccbin=gcc
+LDFLAGS := -fopenmp
+
+CUDA_COMPILER_OPTIONS := -Wextra -Wall -O2
+CUDA_COMPILER_OPTIONS := $(foreach option, $(CUDA_COMPILER_OPTIONS), --compiler-options $(option))
+
+SRCDIR = src
+OBJDIR = obj
+
+# Link hybrid
+hybrid: $(OBJDIR)/kernel.o $(OBJDIR)/mpi_cuda.o
+	mpicc $^ -lcudart -L/usr/local/cuda/lib64 -o $@ -lm
+
+$(OBJDIR)/kernel.o: $(SRCDIR)/lbm.cu
+	$(NVCC) $(CUDA_COMPILER_OPTIONS) $(MPI_COMPILE_FLAGS) -c $< -o $@
+
+$(OBJDIR)/host_kernel.o: $(SRCDIR)/host_kernel.c
+	mpicc $(CFLAGS) -c $< -o $@ -lm
+
+$(OBJDIR)/mpi_cuda.o: $(SRCDIR)/lbm.c
+	mpicc $(CFLAGS) -DCUDA -c $< -o $@ -lm
+
+$(OBJDIR)/mpi.o: $(SRCDIR)/lbm.c
+	mpicc $(CFLAGS) -O2 -c $< -o $@ -lm
+
+# Link mpi
+mpi: $(OBJDIR)/mpi.o $(OBJDIR)/host_kernel.o
+	mpicc $(LDFLAGS) $^ -o $@ -lm
+
+
+.PHONY: run clean purge images
+
+IMGS=$(shell find data | grep txt | sed s/txt/png/g)
+images: $(IMGS)
+data/%.png: data/%.txt
+	./generate_image.pl data/$*.txt
+
+run: hybrid
+	mpirun $^
+
+clean:
+	rm -rf hybrid mpi data/* output core.* obj/*
+
+purge: clean
+	rm -rf *.o*
